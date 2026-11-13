@@ -46,6 +46,16 @@ resources:
             pipeline_id: ${resources.pipelines.vertice_medalhao.id}
           run_if: ALL_SUCCESS
           timeout_seconds: 0
+        - task_key: testes_de_qualidade
+          depends_on:
+            - task_key: medalhao
+          sql_task:
+            file:
+              path: ../src/testes/testes.sql
+              source: WORKSPACE
+            warehouse_id: ${var.warehouse_id}
+          run_if: ALL_SUCCESS
+          timeout_seconds: 0
       email_notifications:
         no_alert_for_skipped_runs: false
       environments:
