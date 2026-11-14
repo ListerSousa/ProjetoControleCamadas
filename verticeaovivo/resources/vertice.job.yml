@@ -1,3 +1,11 @@
+# Job vertice_farol — Orquestração completa da arquitetura medalhão da Vértice (6 tarefas):
+# 1. ingestao_feriados    (em paralelo) : Busca os feriados nacionais de 2026 na BrasilAPI, grava no volume raw e atualiza bronze.feriados.
+# 2. ingestao_data_lake   (em paralelo) : Baixa os arquivos do bucket S3 (DataLakeVertice) via boto3 para o volume raw e recria as 9 tabelas da bronze.
+# 3. conferencia_bronze   (após 1 e 2)  : Confere as contagens das 9 tabelas da bronze contra o esperado (seed 42) e falha com raise_error() se divergir.
+# 4. medalhao             (após 3)      : Roda o pipeline Lakeflow Spark Declarative Pipelines (vertice_medalhao), atualizando as 7 MVs da silver e as 3 MVs da gold.
+# 5. testes_de_qualidade  (após 4, par.): Executa a suíte de 10 testes de qualidade cruzando bronze, silver e gold (raise_error se algum falhar).
+# 6. status_com_ia        (após 4, par.): Incrementa (MERGE) gold.status_estruturado classificando e extraindo bloqueios via regra, palavra-chave e IA v2.0.
+
 resources:
   jobs:
     vertice_farol:
@@ -56,6 +64,16 @@ resources:
             warehouse_id: ${var.warehouse_id}
           run_if: ALL_SUCCESS
           timeout_seconds: 0
+        - task_key: status_com_ia
+          depends_on:
+            - task_key: medalhao
+          sql_task:
+            file:
+              path: ../src/ia/status_estruturado.sql
+              source: WORKSPACE
+            warehouse_id: ${var.warehouse_id}
+          run_if: ALL_SUCCESS
+          timeout_seconds: 0
       email_notifications:
         no_alert_for_skipped_runs: false
       environments:
@@ -68,8 +86,7 @@ resources:
         enabled: true
       schedule:
         pause_status: UNPAUSED
-        quartz_cron_expression: 54 0 6 * * ?
+        quartz_cron_expression: 0 0 6 ? * MON
         timezone_id: America/Sao_Paulo
       timeout_seconds: 0
       webhook_notifications: {}
-
